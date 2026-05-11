@@ -1,0 +1,6 @@
+@processing_service_HostAddress = http://localhost:5163
+
+GET {{processing_service_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

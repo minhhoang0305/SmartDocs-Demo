@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+option csharp_namespace = "processing_service";
+
+service DocumentGrpc{
+    rpc GetDocumentAnalysis (DocumentRequest) returns (DocumentReply);
+}
+
+message DocumentRequest{
+    int32 documentId = 1;
+}
+
+message DocumentReply{
+    string result = 1;
+}

@@ -1,0 +1,68 @@
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# VS Code
+.vscode/
+
+# JetBrains Rider / IntelliJ
+.idea/
+*.sln.iml
+
+# --- .NET build outputs ---
+**/bin/
+**/obj/
+**/TestResults/
+artifacts/
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+
+# dotnet local tools / caches (repo-local)
+.dotnet-home/
+.nuget-packages/
+
+# --- Logs / diagnostics ---
+*.log
+logs/
+**/logs/
+
+# --- Local config / secrets ---
+.env
+.env.*
+**/*.env
+
+# Common local-only appsettings variants (keep appsettings.json committed if you have one)
+**/appsettings.Development.json
+**/appsettings.Local.json
+**/appsettings.*.local.json
+
+# User-secrets / local secret files (names vary by team)
+**/*secrets*.json
+**/secrets.json
+
+# Certificates / private keys
+*.pfx
+*.p12
+*.pem
+*.key
+*.cer
+
+# SQLite / local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# --- Containers / compose overrides ---
+docker-compose.override.yml
+**/docker-compose.override.yml

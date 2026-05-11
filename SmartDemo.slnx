@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/services/">
+    <Project Path="services/api-service/api-service.csproj" />
+    <Project Path="services/processing-service/processing-service.csproj" />
+  </Folder>
+  <Project Path="shared/shared.csproj" />
+</Solution>
