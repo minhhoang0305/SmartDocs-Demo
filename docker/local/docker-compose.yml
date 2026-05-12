@@ -2,7 +2,7 @@ version: "3.9"
 services:
   postgres:
     image: postgres:16
-    container_name: SmartDocs-Progres
+    container_name: SmartDocs-Postgres
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
@@ -20,8 +20,8 @@ services:
     image: minio/minio
     container_name: minio_s3
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "19000:9000"
+      - "19001:9001"
     environment:
       - MINIO_ACCESS_KEY= ${MINIO_ACCESS_KEY:-minio}
       - MINIO_SECRET_KEY= ${MINIO_SECRET_KEY:-miniostorage}
@@ -36,3 +36,27 @@ services:
     container_name: redis-smartdocs
     ports: 
     - "6379:6379"
+
+  api-service:
+    build:
+      context: ../../
+      dockerfile: services/api-service/Dockerfile
+    container_name: smartdocs-api
+    ports:
+      - "5000:8080"
+    depends_on:
+      - postgres
+      - rabbitmq
+      - redis
+      - minio
+
+  processing-service:
+    build:
+      context: ../../
+      dockerfile: services/processing-service/Dockerfile
+    container_name: smartdocs-processing
+    ports:
+      - "7001:7001"
+    depends_on:
+      - rabbitmq
+      - redis

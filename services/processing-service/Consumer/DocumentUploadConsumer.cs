@@ -4,21 +4,25 @@ using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using processing_service.Services;
 using shared.Event;
+using System.Runtime.CompilerServices;
 
 namespace processing_service.Consumer;
 public class DocumentUploadConsumer : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IConfiguration _configuration;
 
-    public DocumentUploadConsumer(IServiceScopeFactory scopeFactory)
+    public DocumentUploadConsumer(IServiceScopeFactory scopeFactory, IConfiguration configuration)
     {
         _scopeFactory = scopeFactory;
+        _configuration = configuration;
     }
     protected override Task ExecuteAsync(CancellationToken cancellationToken)
     {
         var factory = new ConnectionFactory()
         {
-            HostName = "localhost"
+            // HostName = _configuration["Rabbitmq:Host"]
+            HostName = "rabbitmq"
         };
         var connection = factory.CreateConnection();
         var channel = connection.CreateModel();

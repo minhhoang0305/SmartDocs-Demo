@@ -14,7 +14,8 @@ namespace api_service.Services;
     {
         var factory = new ConnectionFactory()
         {
-            HostName = "localhost"
+            // HostName = _configuration["Rabbitmq:Host"]
+            HostName = "rabbitmq"
         };
         using var connection = factory.CreateConnection();
         using var channel = connection.CreateModel();

@@ -1,0 +1,100 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: SmartDocs-Postgres-Staging
+    restart: always
+
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: smartdocs
+
+    ports:
+      - "5433:5432"
+
+  redis:
+    image: redis:7
+    container_name: SmartDocs-redis-Staging
+    restart: always
+
+    ports:
+      - "6380:6379"
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: SmartDocs-Rabbitmq-Staging
+    restart: always
+
+    ports:
+      - "5673:5672"
+      - "15673:15672"
+
+  minio:
+    image: minio/minio
+    container_name: SmartDocs-minio-Staging
+    restart: always
+
+    command: server /data --console-address ":9001"
+
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: miniostorage
+
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+  api-service:
+    image: smartdocs-api:staging
+
+    build:
+      context: ../../
+      dockerfile: services/api-service/Dockerfile
+
+    restart: always
+
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+      - minio
+
+    environment:
+      ASPNETCORE_ENVIRONMENT: Staging
+
+      ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=smartdocs;Username=postgres;Password=postgres
+
+      Redis__ConnectionString: redis:6379
+
+      RabbitMQ__Host: rabbitmq
+
+      Minio__Endpoint: minio:9000
+      Minio__AccessKey: admin
+      Minio__SecretKey: password123
+      Minio__BucketName: smartdocs
+
+    ports:
+      - "15000:8080"
+
+  processing-service:
+    image: smartdocs-processing:staging
+
+    build:
+      context: ../../
+      dockerfile: services/processing-service/Dockerfile
+
+    restart: always
+
+    depends_on:
+      - redis
+      - rabbitmq
+
+    environment:
+      ASPNETCORE_ENVIRONMENT: Staging
+
+      Redis__ConnectionString: redis:6379
+
+      RabbitMQ__Host: rabbitmq
+
+    ports:
+      - "17001:7001"
