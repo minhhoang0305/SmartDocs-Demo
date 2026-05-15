@@ -1,3 +1,4 @@
+name: smartdocs-staging
 services:
   postgres:
     image: postgres:16
@@ -10,7 +11,9 @@ services:
       POSTGRES_DB: smartdocs
 
     ports:
-      - "5433:5432"
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
   redis:
     image: redis:7
@@ -19,6 +22,9 @@ services:
 
     ports:
       - "6380:6379"
+    volumes:
+      - redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -28,6 +34,8 @@ services:
     ports:
       - "5673:5672"
       - "15673:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
 
   minio:
     image: minio/minio
@@ -37,12 +45,29 @@ services:
     command: server /data --console-address ":9001"
 
     environment:
-      MINIO_ROOT_USER: minio
-      MINIO_ROOT_PASSWORD: miniostorage
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-miniostorage}
 
     ports:
       - "9000:9000"
       - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: smartdocs-minio-init-staging
+    depends_on:
+      - minio
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD} &&
+      mc mb -p local/$${MINIO_BUCKET:-smartdocs} || true
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-miniostorage}
+      MINIO_BUCKET: ${MINIO_BUCKET:-smartdocs}
+    restart: "no"
 
   api-service:
     image: smartdocs-api:staging
@@ -62,16 +87,16 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Staging
 
-      ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=smartdocs;Username=postgres;Password=postgres
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=smartdocs;Username=postgres;Password=postgres
 
       Redis__ConnectionString: redis:6379
 
       RabbitMQ__Host: rabbitmq
 
       Minio__Endpoint: minio:9000
-      Minio__AccessKey: admin
-      Minio__SecretKey: password123
-      Minio__BucketName: smartdocs
+      Minio__AccessKey: ${MINIO_ROOT_USER:-minio}
+      Minio__SecretKey: ${MINIO_ROOT_PASSWORD:-miniostorage}
+      Minio__BucketName: ${MINIO_BUCKET:-smartdocs}
 
     ports:
       - "15000:8080"
@@ -98,3 +123,9 @@ services:
 
     ports:
       - "17001:7001"
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
+  minio_data:
+  redis_data:

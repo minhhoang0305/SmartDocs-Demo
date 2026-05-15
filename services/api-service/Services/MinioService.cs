@@ -19,10 +19,29 @@ namespace api_service.Services;
             .WithCredentials(accessKey,secretKey)
             .Build();
         }
-        public async Task<String> UploadFileAsync(IFormFile file)
+
+        private string GetBucketName()
         {
             var bucketName = _configuration["Minio:BucketName"];
+            if (string.IsNullOrWhiteSpace(bucketName))
+                throw new InvalidOperationException("Minio:BucketName is required");
+            return bucketName;
+        }
+
+        private async Task EnsureBucketExistsAsync(string bucketName)
+        {
+            var exists = await _minioClient.BucketExistsAsync(new BucketExistsArgs().WithBucket(bucketName));
+            if (!exists)
+            {
+                await _minioClient.MakeBucketAsync(new MakeBucketArgs().WithBucket(bucketName));
+            }
+        }
+        public async Task<String> UploadFileAsync(IFormFile file)
+        {
+            var bucketName = GetBucketName();
             var objectName = $"{Guid.NewGuid()} - {file.FileName}";
+
+            await EnsureBucketExistsAsync(bucketName);
 
             using var stream = file.OpenReadStream();
 
