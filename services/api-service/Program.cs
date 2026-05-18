@@ -2,6 +2,7 @@ using api_service.Data;
 using Microsoft.EntityFrameworkCore;
 using api_service.Services;
 using api_service.Controller;
+using Microsoft.AspNetCore.Http.Features;
 
 
 
@@ -13,9 +14,17 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddScoped<MinioService>();
 builder.Services.AddScoped<DocumentController>();
 builder.Services.AddScoped<RabbitmqPublish>();
+builder.Services.AddScoped<ChunkUploadService>();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.Configure<FormOptions>(
+    options =>
+    {
+        options.MultipartBodyLengthLimit =
+            1024L * 1024L * 1024L * 5L;
+    });
 
 
 var app = builder.Build();

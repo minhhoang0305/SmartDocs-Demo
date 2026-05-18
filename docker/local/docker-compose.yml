@@ -78,6 +78,8 @@ services:
       Redis__ConnectionString: redis:6379
       RabbitMQ__Host: rabbitmq
       Minio__Endpoint: minio:9000
+      # Public endpoint used to generate presigned URLs that your host machine can reach
+      Minio__PublicEndpoint: http://localhost:19000
       Minio__AccessKey: ${MINIO_ROOT_USER:-minio}
       Minio__SecretKey: ${MINIO_ROOT_PASSWORD:-miniostorage}
       Minio__BucketName: ${MINIO_BUCKET:-smartdocs}
@@ -92,10 +94,14 @@ services:
     depends_on:
       - rabbitmq
       - redis
+      - minio
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       Redis__ConnectionString: redis:6379
       RabbitMQ__Host: rabbitmq
+      Minio__Endpoint: minio:9000
+      Minio__AccessKey: ${MINIO_ROOT_USER:-minio}
+      Minio__SecretKey: ${MINIO_ROOT_PASSWORD:-miniostorage}
 
 volumes:
   postgres_data:
