@@ -11,5 +11,6 @@ namespace api_service.Data
         {  
         }
         public DbSet<Documents> Documents => Set<Documents>();
+        public DbSet<Users> Users => Set<Users>();
     } 
 }

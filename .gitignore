@@ -16,6 +16,8 @@ Desktop.ini
 # JetBrains Rider / IntelliJ
 .idea/
 *.sln.iml
+*.csproj.lscache
+
 
 # --- .NET build outputs ---
 **/bin/

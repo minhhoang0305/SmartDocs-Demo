@@ -1,10 +1,12 @@
 using api_service.Services;
 using api_service.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 namespace api_service.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/chunk")]
 public class ChunkUploadController : ControllerBase
 {
@@ -22,25 +24,28 @@ public class ChunkUploadController : ControllerBase
     [HttpPost("upload")]
     [Consumes("multipart/form-data")]
     public async Task<IActionResult> UploadChunk(
-        [FromForm] ChunkUploadChunkForm request)
+        [FromForm] string uploadId,
+        [FromForm] int chunkIndex,
+        [FromForm] int totalChunks,
+        IFormFile file)
     {
-        if (request.File is null || request.File.Length == 0)
+        if (file is null || file.Length == 0)
             return BadRequest(new { message = "File is required" });
 
-        if (request.ChunkIndex < 0)
+        if (chunkIndex < 0)
             return BadRequest(new { message = "chunkIndex must be >= 0" });
 
-        if (request.TotalChunks <= 0)
+        if (totalChunks <= 0)
             return BadRequest(new { message = "totalChunks must be > 0" });
 
         await _chunkService.SaveChunkAsync(
-            request.UploadId,
-            request.ChunkIndex,
-            request.File);
+            uploadId,
+            chunkIndex,
+            file);
 
         return Ok(new
         {
-            message = $"Chunk {request.ChunkIndex} uploaded"
+            message = $"Chunk {chunkIndex} uploaded"
         });
     }
 

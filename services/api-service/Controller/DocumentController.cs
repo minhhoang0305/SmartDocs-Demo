@@ -4,11 +4,13 @@ using api_service.Services;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 using shared.Event;
+using Microsoft.AspNetCore.Authorization;
 
 
 namespace api_service.Controller
 {
     [ApiController]
+    [Authorize]
     [Route("api/document")]
     public class DocumentController : ControllerBase
     {
