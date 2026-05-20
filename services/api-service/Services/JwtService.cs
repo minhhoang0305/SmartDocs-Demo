@@ -2,16 +2,17 @@ using System.Text;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.IdentityModel.Tokens;
+using api_service.Interface;
 
 namespace api_service.Services;
-public class JwtService
+public class JwtService : IJwtService
 {
     private readonly IConfiguration _configuration;
     public JwtService(IConfiguration configuration)
     {   
         _configuration = configuration;
     }
-    public string GenerateToken(string Username)
+    public string GenerateToken(string Username, string Email)
     {
         var key = _configuration["Jwt:Key"];
         var issuer = _configuration["Jwt:Issuer"];
@@ -21,9 +22,8 @@ public class JwtService
         var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
         var claim = new[]
         {
-            new Claim(
-                ClaimTypes.Email, Username
-            )
+            new Claim(ClaimTypes.Name, Username),
+            new Claim(ClaimTypes.Email, Email)
         };
         var token = new JwtSecurityToken(
             issuer,

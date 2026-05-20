@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 using shared.Event;
 using Microsoft.AspNetCore.Authorization;
+using api_service.Interface;
 
 
 namespace api_service.Controller
@@ -14,14 +15,10 @@ namespace api_service.Controller
     [Route("api/document")]
     public class DocumentController : ControllerBase
     {
-        private readonly MinioService _minioService;
-        private readonly RabbitmqPublish _publisher;
-        private readonly AppDbContext _context;
-        public DocumentController (MinioService minioService, AppDbContext context, RabbitmqPublish publisher)
+        private readonly IDocumentService _documentService;
+        public DocumentController (IDocumentService documentService)
         {
-            _minioService = minioService;
-            _context = context;
-            _publisher = publisher;
+            _documentService = documentService;
         }
         [HttpPost("upload")]
         public async Task<IActionResult> Upload(IFormFile file)
@@ -30,30 +27,9 @@ namespace api_service.Controller
             {
                 return BadRequest("File bắt buộc");
             }
-            var fileUrl = await _minioService.UploadFileAsync(file);
-            var document = new Documents()
-            {
-              FileName = file.FileName,
-              FileUrl = fileUrl,
-              CreateAt = DateTime.UtcNow 
-            };
-            _context.Documents.Add(document);
-            await _context.SaveChangesAsync();
-
-            var uploadEvent = new DocumentUploadEvent
-            {
-                DocumentID = document.Id,
-                Filename =document.FileName,
-                Fileurl = document.FileUrl
-            };
-            var jsonMessage = JsonSerializer.Serialize(uploadEvent);
-            await _publisher.Publish(jsonMessage);
-
-            return Ok(new
-            {
-                message = "Đăng thành công",
-                fileUrl
-            });
+            var result = await _documentService.UploadDocumentAsync(file);
+            return Ok(result);
+              
         }
     }
 }
