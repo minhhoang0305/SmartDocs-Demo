@@ -1,38 +1,61 @@
 using System.Text;
+using System.Text.Json;
+using api_service.Interface;
 using RabbitMQ.Client;
 
 namespace api_service.Services;
-    public class RabbitmqPublish
-    {
-        private readonly IConfiguration _configuration;
 
-        public RabbitmqPublish(IConfiguration configuration)
-        {
-            _configuration = configuration;
-        }
-        public async Task Publish (string message)
+public class RabbitmqPublish: IMessagePublisher
+{
+    private readonly IConnection _connection;
+    private readonly ILogger<RabbitmqPublish> _logger;
+
+    public RabbitmqPublish(
+        IConnection connection,
+        ILogger<RabbitmqPublish> logger)
     {
-        var factory = new ConnectionFactory()
-        {
-            // HostName = _configuration["Rabbitmq:Host"]
-            HostName = "rabbitmq"
-        };
-        using var connection = factory.CreateConnection();
-        using var channel = connection.CreateModel();
+        _connection = connection;
+        _logger = logger;
+    }
+
+    public void Publish<T>(string exchange, string routingKey, T message)
+    {
+        using var channel = _connection.CreateModel();
         channel.QueueDeclare(
-            queue: "document-uploaded",
+            queue: routingKey,
             durable: true,
             exclusive: false,
             autoDelete: false,
-            arguments: null );
-        var body = Encoding.UTF8.GetBytes(message);
+            arguments: null);
+        
+        channel.ExchangeDeclare(exchange: exchange, type: ExchangeType.Direct);
+        channel.QueueBind(
+            queue: routingKey,
+            exchange: exchange,
+            routingKey: routingKey);
+
+        var json = JsonSerializer.Serialize(message);
+        var body = Encoding.UTF8.GetBytes(json);
+        var properties = channel.CreateBasicProperties();
+        properties.Persistent = true;
+
+        _logger.LogInformation(
+            "Publishing {MessageType} to RabbitMQ exchange={Exchange} routingKey={RoutingKey}",
+            typeof(T).Name,
+            exchange,
+            routingKey);
 
         channel.BasicPublish(
-            exchange: string.Empty,
-            routingKey: "document-uploaded",
+            exchange: exchange,
+            routingKey: routingKey,
+            basicProperties: properties,
             body: body
         );
-        Console.WriteLine("Publish thành công");
-    }
-    }
 
+        _logger.LogInformation(
+            "Published {MessageType} to RabbitMQ exchange={Exchange} routingKey={RoutingKey}",
+            typeof(T).Name,
+            exchange,
+            routingKey);
+    }
+}

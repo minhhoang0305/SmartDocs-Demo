@@ -33,12 +33,13 @@ public class RequestLoggingMiddleware
                     : "anonymous";
 
             _logger.LogInformation(
-                "HTTP {Method} {Path} responded {StatusCode} in {ElapsedMilliseconds} ms for {User}",
+                "HTTP {Method} {Path} responded {StatusCode} in {ElapsedMilliseconds} ms for {User} traceId={TraceId}",
                 context.Request.Method,
                 context.Request.Path,
                 context.Response.StatusCode,
                 stopwatch.ElapsedMilliseconds,
-                userName);
+                userName,
+                context.TraceIdentifier);
         }
     }
 }

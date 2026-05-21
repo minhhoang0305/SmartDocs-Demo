@@ -17,7 +17,7 @@ public class AuthService : IAuthService
         var existingUser = await _context.Users.FirstOrDefaultAsync(x => x.Email == request.Email);
         if(existingUser != null)
         {
-            return "User already exists";
+            return "Email đã tồn tại";
         }
         var user = new Users
         {
@@ -28,7 +28,7 @@ public class AuthService : IAuthService
         };
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
-        return "User created";
+        return "Đăng ký thành công";
     }
     public async Task<Users?> LoginAsync(LoginRequest request)
     {

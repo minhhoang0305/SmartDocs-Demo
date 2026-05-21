@@ -45,6 +45,17 @@ services:
       - redis_data:/data
     command: ["redis-server", "--appendonly", "yes"]
 
+  seq:
+    image: datalust/seq:latest
+    container_name: smartdocs-seq
+    ports:
+      - "5341:80"
+    environment:
+      - ACCEPT_EULA=Y
+      - SEQ_FIRSTRUN_NOAUTHENTICATION=true
+    volumes:
+      - seq_data:/data
+
   minio-init:
     image: minio/mc:latest
     container_name: smartdocs-minio-init
@@ -72,11 +83,13 @@ services:
       - rabbitmq
       - redis
       - minio
+      - seq
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=smartdocs;Username=postgres;Password=postgres
       Redis__ConnectionString: redis:6379
       RabbitMQ__Host: rabbitmq
+      Seq__ServerUrl: http://seq
       Minio__Endpoint: minio:9000
       # Public endpoint used to generate presigned URLs that your host machine can reach
       Minio__PublicEndpoint: http://localhost:19000
@@ -95,10 +108,12 @@ services:
       - rabbitmq
       - redis
       - minio
+      - seq
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       Redis__ConnectionString: redis:6379
       RabbitMQ__Host: rabbitmq
+      Seq__ServerUrl: http://seq
       Minio__Endpoint: minio:9000
       Minio__AccessKey: ${MINIO_ROOT_USER:-minio}
       Minio__SecretKey: ${MINIO_ROOT_PASSWORD:-miniostorage}
@@ -108,3 +123,4 @@ volumes:
   rabbitmq_data:
   minio_data:
   redis_data:
+  seq_data:

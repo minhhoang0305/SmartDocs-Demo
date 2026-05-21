@@ -9,10 +9,31 @@ using System.Threading.RateLimiting;
 using Microsoft.OpenApi;
 using api_service.Interface;
 using api_service.Middleware;
+using RabbitMQ.Client;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((context, services, configuration) =>
+{
+    configuration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext()
+        .Enrich.WithMachineName()
+        .Enrich.WithProperty("service", "api-service")
+        .WriteTo.Console()
+        .WriteTo.Seq(context.Configuration["Seq:ServerUrl"]!);
+});
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+
+builder.Services.AddSingleton<IConnection>(sp =>
+{
+    var factory = new ConnectionFactory(){HostName = "rabbitmq"};
+    return factory.CreateConnection();
+});
 
 builder.Services.AddSwaggerGen(c =>
 {
@@ -57,7 +78,7 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 
 builder.Services.AddScoped<MinioService>();
-builder.Services.AddScoped<RabbitmqPublish>();
+builder.Services.AddScoped<IMessagePublisher, RabbitmqPublish>();
 builder.Services.AddScoped<ChunkUploadService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IAuthService, AuthService>();

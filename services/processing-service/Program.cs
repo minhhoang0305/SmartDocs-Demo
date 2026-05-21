@@ -1,8 +1,22 @@
 using processing_service.Consumer;
 using processing_service.Services;
 using processing_service.gRPC;
+using RabbitMQ.Client;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((context, services, configuration) =>
+{
+    configuration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext()
+        .Enrich.WithMachineName()
+        .Enrich.WithProperty("service", "processing-service")
+        .WriteTo.Console()
+        .WriteTo.Seq(context.Configuration["Seq:ServerUrl"]!);
+});
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -10,6 +24,12 @@ builder.Services.AddOpenApi();
 builder.Services.AddHostedService<DocumentUploadConsumer>();
 builder.Services.AddScoped<RedisService>();
 builder.Services.AddGrpc();
+
+builder.Services.AddSingleton<IConnection>(sp =>
+{
+    var factory = new ConnectionFactory(){HostName = "rabbitmq"};
+    return factory.CreateConnection();
+});
 
 
 var app = builder.Build();
