@@ -77,7 +77,13 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(
+    options =>
+    {
+        options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+        options.AddPolicy("UserOnly", policy => policy.RequireRole("User"));
+    }
+);
 
 builder.Services.AddScoped<MinioService>();
 builder.Services.AddScoped<IMessagePublisher, RabbitmqPublish>();

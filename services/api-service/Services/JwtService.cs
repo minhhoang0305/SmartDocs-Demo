@@ -12,7 +12,7 @@ public class JwtService : IJwtService
     {   
         _configuration = configuration;
     }
-    public string GenerateToken(string Username, string Email)
+    public string GenerateToken(string Username, string Email, string Role)
     {
         var key = _configuration["Jwt:Key"];
         var issuer = _configuration["Jwt:Issuer"];
@@ -23,7 +23,8 @@ public class JwtService : IJwtService
         var claim = new[]
         {
             new Claim(ClaimTypes.Name, Username),
-            new Claim(ClaimTypes.Email, Email)
+            new Claim(ClaimTypes.Email, Email),
+            new Claim(ClaimTypes.Role, Role)
         };
         var token = new JwtSecurityToken(
             issuer,

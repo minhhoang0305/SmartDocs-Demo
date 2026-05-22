@@ -11,7 +11,6 @@ using api_service.Interface;
 namespace api_service.Controller
 {
     [ApiController]
-    [Authorize]
     [Route("api/document")]
     public class DocumentController : ControllerBase
     {
@@ -21,6 +20,7 @@ namespace api_service.Controller
             _documentService = documentService;
         }
         [HttpPost("upload")]
+        [Authorize (Policy = "AdminOnly")]
         public async Task<IActionResult> Upload(IFormFile file)
         {
             if(file == null || file.Length == 0)
@@ -31,5 +31,13 @@ namespace api_service.Controller
             return Ok(result);
               
         }
+        [HttpGet("all")]
+        [Authorize (Policy = "UserOnly")]
+        public async Task<IActionResult> GetAllDocuments()
+        {
+            var documents = await _documentService.GetAllDocumentsAsync();
+            return Ok(documents);
+        }
     }
+
 }

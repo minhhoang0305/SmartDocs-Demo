@@ -1,6 +1,7 @@
 using api_service.Data;
 using api_service.Interface;
 using api_service.Models;
+using Microsoft.EntityFrameworkCore;
 using shared.Event;
 
 namespace api_service.Services;
@@ -27,7 +28,7 @@ public class DocumentService : IDocumentService
     public async Task<object> UploadDocumentAsync(IFormFile file)
     {
         _logger.LogInformation(
-            "Uploading document fileName={FileName} contentType={ContentType} size={FileSize}",
+            "Uploading document fileName={FileName} contentType={ContentType} fileSize={FileSize}",
             file.FileName,
             file.ContentType,
             file.Length);
@@ -63,5 +64,17 @@ public class DocumentService : IDocumentService
             "document-uploaded");
 
         return document;
+    }
+
+    public async Task<IEnumerable<DocumentsRequest>> GetAllDocumentsAsync()
+    {
+        _logger.LogInformation(
+            "Retrieving all documents from database"
+        );
+        return await _context.Documents.Select(d => new DocumentsRequest
+        {
+            FileName = d.FileName,
+            FileUrl = d.FileUrl,
+        }).ToListAsync();
     }
 }

@@ -36,7 +36,7 @@ public class AuthController : ControllerBase
         if (user == null)
             return Unauthorized("Email hoặc mật khẩu không đúng");
 
-        var token = _jwtService.GenerateToken(user.Username, user.Email);
+        var token = _jwtService.GenerateToken(user.Username, user.Email, user.Role);
 
         return Ok(new
         {
