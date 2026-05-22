@@ -1,3 +1,4 @@
+# SDK sử dụng để build ứng dụng khi lên production không cần thiết, chỉ cần runtime để chạy ứng dụng
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 
 WORKDIR /src
@@ -20,6 +21,7 @@ RUN dotnet publish "api-service.csproj" \
     -o /app/publish \
     /p:UseAppHost=false
 
+# runtime để chạy ứng dụng
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 
 WORKDIR /app

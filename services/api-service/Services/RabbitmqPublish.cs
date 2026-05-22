@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using api_service.Interface;
@@ -7,15 +8,20 @@ namespace api_service.Services;
 
 public class RabbitmqPublish: IMessagePublisher
 {
+    private const string TraceIdHeader = "traceId";
+
     private readonly IConnection _connection;
     private readonly ILogger<RabbitmqPublish> _logger;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
     public RabbitmqPublish(
         IConnection connection,
-        ILogger<RabbitmqPublish> logger)
+        ILogger<RabbitmqPublish> logger,
+        IHttpContextAccessor httpContextAccessor)
     {
         _connection = connection;
         _logger = logger;
+        _httpContextAccessor = httpContextAccessor;
     }
 
     public void Publish<T>(string exchange, string routingKey, T message)
@@ -38,12 +44,14 @@ public class RabbitmqPublish: IMessagePublisher
         var body = Encoding.UTF8.GetBytes(json);
         var properties = channel.CreateBasicProperties();
         properties.Persistent = true;
-
-        _logger.LogInformation(
-            "Publishing {MessageType} to RabbitMQ exchange={Exchange} routingKey={RoutingKey}",
-            typeof(T).Name,
-            exchange,
-            routingKey);
+        var traceId =
+            _httpContextAccessor.HttpContext?.Items["traceId"]?.ToString()
+            ?? Activity.Current?.TraceId.ToString()
+            ?? string.Empty;
+        properties.Headers = new Dictionary<string, object>
+        {
+            { TraceIdHeader, traceId }
+        };
 
         channel.BasicPublish(
             exchange: exchange,

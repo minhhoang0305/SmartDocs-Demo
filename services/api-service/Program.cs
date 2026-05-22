@@ -11,6 +11,7 @@ using api_service.Interface;
 using api_service.Middleware;
 using RabbitMQ.Client;
 using Serilog;
+using System.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,6 +29,7 @@ builder.Host.UseSerilog((context, services, configuration) =>
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddSingleton<IConnection>(sp =>
 {
@@ -121,6 +123,9 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 
+Activity.DefaultIdFormat = ActivityIdFormat.W3C;
+Activity.ForceDefaultIdFormat = true;
+
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
@@ -140,9 +145,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseAuthentication();
-app.UseMiddleware<RequestLoggingMiddleware>();
+app.UseMiddleware<TraceIdMiddleware>();
 app.UseRateLimiter();
+app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<RequestLoggingMiddleware>();
 app.MapControllers();   
 app.Run();

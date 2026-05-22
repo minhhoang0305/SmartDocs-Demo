@@ -31,6 +31,8 @@ public class RequestLoggingMiddleware
                 context.User.Identity?.IsAuthenticated == true
                     ? context.User.Identity.Name
                     : "anonymous";
+            
+            var traceId = context.Items["traceId"]?.ToString()?? context.TraceIdentifier;
 
             _logger.LogInformation(
                 "HTTP {Method} {Path} responded {StatusCode} in {ElapsedMilliseconds} ms for {User} traceId={TraceId}",
@@ -39,7 +41,7 @@ public class RequestLoggingMiddleware
                 context.Response.StatusCode,
                 stopwatch.ElapsedMilliseconds,
                 userName,
-                context.TraceIdentifier);
+                traceId);
         }
     }
 }

@@ -11,6 +11,8 @@ public class DocumentUploadConsumer : BackgroundService
     private const string ExchangeName = "request.exchange";
     private const string QueueName = "document-uploaded";
     private const string RoutingKey = "document-uploaded";
+    private const string TraceIdHeader = "traceId";
+    private const string LegacyTraceIdHeader = "trace-Id";
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IConnection _connection;
@@ -78,30 +80,42 @@ public class DocumentUploadConsumer : BackgroundService
         }
 
         var json = Encoding.UTF8.GetString(eventArgs.Body.ToArray());
+        var traceId =
+            GetHeaderValue(eventArgs.BasicProperties.Headers, TraceIdHeader)
+            ?? GetHeaderValue(eventArgs.BasicProperties.Headers, LegacyTraceIdHeader)
+            ?? string.Empty;
+
+        using var logScope = _logger.BeginScope(new Dictionary<string, object>
+        {
+            ["TraceId"] = traceId
+        });
 
         try
         {
             _logger.LogInformation(
-                "Received RabbitMQ message deliveryTag={DeliveryTag} routingKey={RoutingKey} body={Body}",
+                "Received RabbitMQ message deliveryTag={DeliveryTag} routingKey={RoutingKey} body={Body} traceId = {TraceId}",
                 eventArgs.DeliveryTag,
                 eventArgs.RoutingKey,
-                json);
+                json,
+                traceId);
 
             var message = JsonSerializer.Deserialize<DocumentUploadEvent>(json);
             if (message is null)
             {
                 _logger.LogWarning(
-                    "Ignoring empty RabbitMQ message deliveryTag={DeliveryTag}",
-                    eventArgs.DeliveryTag);
+                    "Ignoring empty RabbitMQ message deliveryTag={DeliveryTag} traceId = {TraceId}",
+                    eventArgs.DeliveryTag,
+                    traceId);
 
                 _channel.BasicAck(eventArgs.DeliveryTag, multiple: false);
                 return;
             }
 
             _logger.LogInformation(
-                "Processing document upload event documentId={DocumentId} fileName={FileName}",
+                "Processing document upload event documentId={DocumentId} fileName={FileName} traceId = {TraceId}",
                 message.DocumentID,
-                message.Filename);
+                message.Filename,
+                traceId);
 
             using var scope = _scopeFactory.CreateScope();
             var redis = scope.ServiceProvider.GetRequiredService<RedisService>();
@@ -114,17 +128,19 @@ public class DocumentUploadConsumer : BackgroundService
             _channel.BasicAck(eventArgs.DeliveryTag, multiple: false);
 
             _logger.LogInformation(
-                "Processed document upload event documentId={DocumentId} fileName={FileName}",
+                "Processed document upload event documentId={DocumentId} fileName={FileName} traceId = {TraceId}",
                 message.DocumentID,
-                message.Filename);
+                message.Filename,
+                traceId);
         }
         catch (JsonException ex)
         {
             _logger.LogError(
                 ex,
-                "Invalid RabbitMQ message payload deliveryTag={DeliveryTag} body={Body}",
+                "Invalid RabbitMQ message payload deliveryTag={DeliveryTag} body={Body} traceId = {TraceId}",
                 eventArgs.DeliveryTag,
-                json);
+                json,
+                traceId);
 
             _channel.BasicNack(
                 eventArgs.DeliveryTag,
@@ -134,8 +150,9 @@ public class DocumentUploadConsumer : BackgroundService
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             _logger.LogWarning(
-                "RabbitMQ message processing canceled deliveryTag={DeliveryTag}",
-                eventArgs.DeliveryTag);
+                "RabbitMQ message processing canceled deliveryTag={DeliveryTag} traceId = {TraceId}",
+                eventArgs.DeliveryTag,
+                traceId);
 
             _channel.BasicNack(
                 eventArgs.DeliveryTag,
@@ -146,15 +163,34 @@ public class DocumentUploadConsumer : BackgroundService
         {
             _logger.LogError(
                 ex,
-                "Failed to process RabbitMQ message deliveryTag={DeliveryTag} routingKey={RoutingKey}",
+                "Failed to process RabbitMQ message deliveryTag={DeliveryTag} routingKey={RoutingKey} traceId = {TraceId}",
                 eventArgs.DeliveryTag,
-                eventArgs.RoutingKey);
+                eventArgs.RoutingKey,
+                traceId);
 
             _channel.BasicNack(
                 eventArgs.DeliveryTag,
                 multiple: false,
                 requeue: true);
         }
+    }
+
+    private static string? GetHeaderValue(
+        IDictionary<string, object>? headers,
+        string headerName)
+    {
+        if (headers is null ||
+            !headers.TryGetValue(headerName, out var value))
+        {
+            return null;
+        }
+
+        return value switch
+        {
+            byte[] bytes => Encoding.UTF8.GetString(bytes),
+            string text => text,
+            _ => value.ToString()
+        };
     }
 
     public override Task StopAsync(CancellationToken cancellationToken)
