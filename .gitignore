@@ -43,6 +43,7 @@ logs/
 .env
 .env.*
 **/*.env
+!**/.env.example
 
 # Common local-only appsettings variants (keep appsettings.json committed if you have one)
 **/appsettings.Development.json

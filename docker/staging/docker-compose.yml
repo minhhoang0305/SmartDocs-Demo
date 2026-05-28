@@ -7,7 +7,7 @@ services:
 
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD}
       POSTGRES_DB: smartdocs
 
     ports:
@@ -45,8 +45,8 @@ services:
     command: server /data --console-address ":9001"
 
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-miniostorage}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD}
 
     ports:
       - "9000:9000"
@@ -64,10 +64,57 @@ services:
       mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD} &&
       mc mb -p local/$${MINIO_BUCKET:-smartdocs} || true
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-miniostorage}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD}
       MINIO_BUCKET: ${MINIO_BUCKET:-smartdocs}
     restart: "no"
+
+  loki:
+    image: grafana/loki:latest
+    container_name: SmartDocs-loki-Staging
+    restart: always
+    ports:
+      - "13100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki_data:/loki
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: SmartDocs-grafana-Staging
+    restart: always
+    ports:
+      - "13000:3000"
+    depends_on:
+      - loki
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+  grafana-init:
+    image: curlimages/curl:latest
+    container_name: SmartDocs-grafana-init-Staging
+    restart: "no"
+    depends_on:
+      - grafana
+    entrypoint: ["/bin/sh"]
+    command:
+      - -c
+      - |
+        until curl -fsS http://grafana:3000/api/health >/dev/null; do sleep 2; done
+        curl -fsS \
+          -u admin:$${GRAFANA_ADMIN_PASSWORD:-admin} \
+          -H 'Content-Type: application/json' \
+          -X POST http://grafana:3000/api/datasources \
+          -d '{"name":"Loki","type":"loki","access":"proxy","url":"http://loki:3100","isDefault":true}' \
+          || true
+    environment:
+      GRAFANA_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
 
   api-service:
     image: smartdocs-api:staging
@@ -83,19 +130,23 @@ services:
       - redis
       - rabbitmq
       - minio
+      - loki
 
     environment:
       ASPNETCORE_ENVIRONMENT: Staging
 
-      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=smartdocs;Username=postgres;Password=postgres
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=smartdocs;Username=postgres;Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD}
+      Jwt__PrivateKeyBase64: ${JWT_PRIVATE_KEY_BASE64:?JWT_PRIVATE_KEY_BASE64}
+      Jwt__PublicKeyBase64: ${JWT_PUBLIC_KEY_BASE64:?JWT_PUBLIC_KEY_BASE64}
+      Loki__Uri: http://loki:3100
 
       Redis__ConnectionString: redis:6379
 
       RabbitMQ__Host: rabbitmq
 
       Minio__Endpoint: minio:9000
-      Minio__AccessKey: ${MINIO_ROOT_USER:-minio}
-      Minio__SecretKey: ${MINIO_ROOT_PASSWORD:-miniostorage}
+      Minio__AccessKey: ${MINIO_ROOT_USER:?MINIO_ROOT_USER}
+      Minio__SecretKey: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD}
       Minio__BucketName: ${MINIO_BUCKET:-smartdocs}
 
     ports:
@@ -113,9 +164,11 @@ services:
     depends_on:
       - redis
       - rabbitmq
+      - loki
 
     environment:
       ASPNETCORE_ENVIRONMENT: Staging
+      Loki__Uri: http://loki:3100
 
       Redis__ConnectionString: redis:6379
 
@@ -129,3 +182,5 @@ volumes:
   rabbitmq_data:
   minio_data:
   redis_data:
+  loki_data:
+  grafana_data:

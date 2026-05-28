@@ -32,7 +32,7 @@ public class RabbitmqPublish: IMessagePublisher
             durable: true,
             exclusive: false,
             autoDelete: false,
-            arguments: null);
+            arguments: new Dictionary<string, object> {{"x-queue-type", "quorum"}});
         
         channel.ExchangeDeclare(exchange: exchange, type: ExchangeType.Direct);
         channel.QueueBind(

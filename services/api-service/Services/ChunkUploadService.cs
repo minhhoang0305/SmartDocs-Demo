@@ -1,3 +1,6 @@
+using api_service.Options;
+using Microsoft.Extensions.Options;
+
 namespace api_service.Services;
 
 public class ChunkUploadService
@@ -7,12 +10,12 @@ public class ChunkUploadService
 
     public ChunkUploadService(
         IWebHostEnvironment environment,
-        IConfiguration configuration)
+        IOptions<ChunkUploadOptions> chunkUploadOptions)
     {
         _environment = environment;
 
         var configuredTempRoot =
-            configuration["ChunkUpload:TempRootPath"];
+            chunkUploadOptions.Value.TempRootPath;
 
         _tempRootPath =
             string.IsNullOrWhiteSpace(configuredTempRoot)

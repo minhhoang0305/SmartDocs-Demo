@@ -32,12 +32,17 @@ public class DocumentUploadConsumer : BackgroundService
     {
         _channel = _connection.CreateModel();
 
+        _channel.BasicQos(
+            prefetchSize: 0,
+            prefetchCount: 5,
+            global: false);
+
         _channel.QueueDeclare(
             queue: QueueName,
             durable: true,
             exclusive: false,
             autoDelete: false,
-            arguments: null);
+            arguments: new Dictionary<string, object> {{"x-queue-type", "quorum"}});
         _channel.ExchangeDeclare(exchange: ExchangeName, type: ExchangeType.Direct);
 
         _channel.QueueBind(
@@ -45,7 +50,7 @@ public class DocumentUploadConsumer : BackgroundService
             exchange: ExchangeName,
             routingKey: RoutingKey);
 
-        var consumer = new EventingBasicConsumer(_channel);
+        var consumer = new AsyncEventingBasicConsumer(_channel);
         consumer.Received += async (_, eventArgs) =>
         {
             await HandleMessageAsync(eventArgs, cancellationToken);
@@ -55,6 +60,7 @@ public class DocumentUploadConsumer : BackgroundService
             queue: QueueName,
             autoAck: false,
             consumer: consumer);
+        
 
         var queueInfo = _channel.QueueDeclarePassive(QueueName);
 

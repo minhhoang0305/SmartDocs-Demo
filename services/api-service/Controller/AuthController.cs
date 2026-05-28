@@ -22,20 +22,21 @@ public class AuthController : ControllerBase
     {
         var result = await _authService.RegisterAsync(request);
 
-        if (result != "Đăng ký thành công")
-            return BadRequest(result);
+        if (result.IsFailure)
+            return BadRequest(result.Error);
 
-        return Ok(result);
+        return Ok(result.Value);
     }
 
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginRequest request)
     {
-        var user = await _authService.LoginAsync(request);
+        var result = await _authService.LoginAsync(request);
 
-        if (user == null)
-            return Unauthorized("Email hoặc mật khẩu không đúng");
+        if (result.IsFailure)
+            return Unauthorized(result.Error);
 
+        var user = result.Value!;
         var token = _jwtService.GenerateToken(user.Username, user.Email, user.Role);
 
         return Ok(new

@@ -5,7 +5,7 @@ services:
     container_name: SmartDocs-Postgres
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD}
       - POSTGRES_DB=smartdocs
     ports:
       - "${POSTGRES_PORT:-15432}:5432"
@@ -27,8 +27,8 @@ services:
       - "19000:9000"
       - "19001:9001"
     environment:
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minio}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-miniostorage}
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:?MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD}
     command: 
     - server 
     - /data 
@@ -45,16 +45,50 @@ services:
       - redis_data:/data
     command: ["redis-server", "--appendonly", "yes"]
 
-  seq:
-    image: datalust/seq:latest
-    container_name: smartdocs-seq
+  loki:
+    image: grafana/loki:latest
+    container_name: smartdocs-loki
     ports:
-      - "5341:80"
-    environment:
-      - ACCEPT_EULA=Y
-      - SEQ_FIRSTRUN_NOAUTHENTICATION=true
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
     volumes:
-      - seq_data:/data
+      - loki_data:/loki
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: smartdocs-grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - loki
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+  grafana-init:
+    image: curlimages/curl:latest
+    container_name: smartdocs-grafana-init
+    depends_on:
+      - grafana
+    entrypoint: ["/bin/sh"]
+    command:
+      - -c
+      - |
+        until curl -fsS http://grafana:3000/api/health >/dev/null; do sleep 2; done
+        curl -fsS \
+          -u admin:$${GRAFANA_ADMIN_PASSWORD:-admin} \
+          -H 'Content-Type: application/json' \
+          -X POST http://grafana:3000/api/datasources \
+          -d '{"name":"Loki","type":"loki","access":"proxy","url":"http://loki:3100","isDefault":true}' \
+          || true
+    environment:
+      - GRAFANA_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+    restart: "no"
 
   minio-init:
     image: minio/mc:latest
@@ -66,8 +100,8 @@ services:
       mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD} &&
       mc mb -p local/$${MINIO_BUCKET:-smartdocs} || true
     environment:
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minio}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-miniostorage}
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:?MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD}
       - MINIO_BUCKET=${MINIO_BUCKET:-smartdocs}
     restart: "no"
 
@@ -83,18 +117,23 @@ services:
       - rabbitmq
       - redis
       - minio
-      - seq
+      - loki
+      - vault
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=smartdocs;Username=postgres;Password=postgres
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=smartdocs;Username=postgres;Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD}
+      Jwt__PrivateKeyBase64: ${JWT_PRIVATE_KEY_BASE64:?JWT_PRIVATE_KEY_BASE64}
+      Jwt__PublicKeyBase64: ${JWT_PUBLIC_KEY_BASE64:?JWT_PUBLIC_KEY_BASE64}
+      Vault__Address: http://vault:8200
+      Vault__Token: ${VAULT_TOKEN:?VAULT_TOKEN}
       Redis__ConnectionString: redis:6379
       RabbitMQ__Host: rabbitmq
-      Seq__ServerUrl: http://seq
+      Loki__Uri: http://loki:3100
       Minio__Endpoint: minio:9000
       # Public endpoint used to generate presigned URLs that your host machine can reach
       Minio__PublicEndpoint: http://localhost:19000
-      Minio__AccessKey: ${MINIO_ROOT_USER:-minio}
-      Minio__SecretKey: ${MINIO_ROOT_PASSWORD:-miniostorage}
+      Minio__AccessKey: ${MINIO_ROOT_USER:?MINIO_ROOT_USER}
+      Minio__SecretKey: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD}
       Minio__BucketName: ${MINIO_BUCKET:-smartdocs}
 
   processing-service:
@@ -108,19 +147,33 @@ services:
       - rabbitmq
       - redis
       - minio
-      - seq
+      - loki
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       Redis__ConnectionString: redis:6379
       RabbitMQ__Host: rabbitmq
-      Seq__ServerUrl: http://seq
+      Loki__Uri: http://loki:3100
       Minio__Endpoint: minio:9000
-      Minio__AccessKey: ${MINIO_ROOT_USER:-minio}
-      Minio__SecretKey: ${MINIO_ROOT_PASSWORD:-miniostorage}
+      Minio__AccessKey: ${MINIO_ROOT_USER:?MINIO_ROOT_USER}
+      Minio__SecretKey: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD}
+
+  vault:
+    image: hashicorp/vault:latest
+    container_name: vault
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_TOKEN:?VAULT_TOKEN}
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+    command: vault server -dev
 
 volumes:
   postgres_data:
   rabbitmq_data:
   minio_data:
   redis_data:
-  seq_data:
+  loki_data:
+  grafana_data:
+  vault_data:

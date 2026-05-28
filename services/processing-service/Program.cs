@@ -3,23 +3,35 @@ using processing_service.Services;
 using processing_service.gRPC;
 using RabbitMQ.Client;
 using Serilog;
+using Serilog.Enrichers.Span;
+using Serilog.Sinks.Grafana.Loki;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Host.UseSerilog((context, services, configuration) =>
 {
+    var serviceName = "processing-service";
+    var environmentName = context.HostingEnvironment.EnvironmentName;
+    var lokiUri = context.Configuration["Loki:Uri"] ?? "http://loki:3100";
+
     configuration
         .ReadFrom.Configuration(context.Configuration)
         .ReadFrom.Services(services)
         .Enrich.FromLogContext()
+        .Enrich.WithSpan()
         .Enrich.WithMachineName()
-        .Enrich.WithProperty("service", "processing-service")
+        .Enrich.WithProperty("service", serviceName)
+        .Enrich.WithProperty("environment", environmentName)
         .WriteTo.Console()
-        .WriteTo.Seq(context.Configuration["Seq:ServerUrl"]!);
+        .WriteTo.GrafanaLoki(
+            lokiUri,
+            labels:
+            [
+                new LokiLabel { Key = "service", Value = serviceName },
+                new LokiLabel { Key = "environment", Value = environmentName }
+            ]);
 });
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddHostedService<DocumentUploadConsumer>();
 builder.Services.AddScoped<RedisService>();
@@ -27,10 +39,14 @@ builder.Services.AddGrpc();
 
 builder.Services.AddSingleton<IConnection>(sp =>
 {
-    var factory = new ConnectionFactory(){HostName = "rabbitmq"};
+    var factory = new ConnectionFactory
+    {
+        HostName = "rabbitmq",
+        DispatchConsumersAsync = true
+    };
+
     return factory.CreateConnection();
 });
-
 
 var app = builder.Build();
 
