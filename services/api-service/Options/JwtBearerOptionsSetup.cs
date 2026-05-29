@@ -7,10 +7,12 @@ namespace api_service.Options;
 public class JwtBearerOptionsSetup : IConfigureNamedOptions<JwtBearerOptions>
 {
     private readonly JwtOptions _jwtOptions;
+    private readonly RsaSecurityKey _rsaPublicKey;
 
-    public JwtBearerOptionsSetup(IOptions<JwtOptions> jwtOptions)
+    public JwtBearerOptionsSetup(IOptions<JwtOptions> jwtOptions, RsaSecurityKey rsaPublicKey)
     {
         _jwtOptions = jwtOptions.Value;
+        _rsaPublicKey = rsaPublicKey;
     }
 
     public void Configure(JwtBearerOptions options)
@@ -23,8 +25,6 @@ public class JwtBearerOptionsSetup : IConfigureNamedOptions<JwtBearerOptions>
         if (name != JwtBearerDefaults.AuthenticationScheme)
             return;
 
-        var key = JwtRsaKeyReader.CreatePublicKey(_jwtOptions);
-
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -34,7 +34,7 @@ public class JwtBearerOptionsSetup : IConfigureNamedOptions<JwtBearerOptions>
 
             ValidIssuer = _jwtOptions.Issuer,
             ValidAudience = _jwtOptions.Audience,
-            IssuerSigningKey = key,
+            IssuerSigningKey = _rsaPublicKey,
             ValidAlgorithms = [SecurityAlgorithms.RsaSha256]
         };
     }

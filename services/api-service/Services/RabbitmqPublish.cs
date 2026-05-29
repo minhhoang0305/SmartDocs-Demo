@@ -12,16 +12,13 @@ public class RabbitmqPublish: IMessagePublisher
 
     private readonly IConnection _connection;
     private readonly ILogger<RabbitmqPublish> _logger;
-    private readonly IHttpContextAccessor _httpContextAccessor;
 
     public RabbitmqPublish(
         IConnection connection,
-        ILogger<RabbitmqPublish> logger,
-        IHttpContextAccessor httpContextAccessor)
+        ILogger<RabbitmqPublish> logger)
     {
         _connection = connection;
         _logger = logger;
-        _httpContextAccessor = httpContextAccessor;
     }
 
     public void Publish<T>(string exchange, string routingKey, T message)
@@ -44,10 +41,7 @@ public class RabbitmqPublish: IMessagePublisher
         var body = Encoding.UTF8.GetBytes(json);
         var properties = channel.CreateBasicProperties();
         properties.Persistent = true;
-        var traceId =
-            _httpContextAccessor.HttpContext?.Items["traceId"]?.ToString()
-            ?? Activity.Current?.TraceId.ToString()
-            ?? string.Empty;
+        var traceId = Activity.Current?.TraceId.ToString() ?? string.Empty;
         properties.Headers = new Dictionary<string, object>
         {
             { TraceIdHeader, traceId }

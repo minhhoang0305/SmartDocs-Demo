@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using api_service.Services;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 using System.Threading.RateLimiting;
 using Microsoft.OpenApi;
 using api_service.Interface;
@@ -15,6 +16,8 @@ using Serilog.Sinks.Grafana.Loki;
 using System.Diagnostics;
 using VaultSharp;
 using VaultSharp.V1.AuthMethods.Token;
+using Microsoft.Extensions.Options;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -40,6 +43,17 @@ builder.Host.UseSerilog((context, services, configuration) =>
                 new LokiLabel { Key = "service", Value = serviceName },
                 new LokiLabel { Key = "environment", Value = environmentName }
             ]);
+});
+
+builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+{
+    var configuration = builder.Configuration;
+    var connectionString = configuration["Redis:ConnectionString"];
+    if(string.IsNullOrWhiteSpace(connectionString)) 
+    {
+        throw new InvalidOperationException("Redis connection string is not configured");
+    }
+    return ConnectionMultiplexer.Connect(connectionString);
 });
 
 var vaultAddress = builder.Configuration["Vault:Address"];
@@ -99,7 +113,7 @@ if (!string.IsNullOrWhiteSpace(vaultAddress) && !string.IsNullOrWhiteSpace(vault
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"Vault secrets could not be loaded. Falling back to configured values. Error: {ex.Message}");
+        Log.Fatal(ex, "Vault secrets could not be loaded. Falling back to configured values. Error: {ErrorMessage}", ex.Message);
     }
 }
 
@@ -117,9 +131,16 @@ builder.Services
             && JwtRsaKeyReader.CanCreatePublicKey(options)
             && !string.IsNullOrWhiteSpace(options.Issuer)
             && !string.IsNullOrWhiteSpace(options.Audience)
-            && options.Expireminutes > 0,
+            && options.Expireminutes > 0
+            && options.RefreshTokenExpireDays > 0,
         "Jwt configuration is invalid")
     .ValidateOnStart();
+builder.Services.AddSingleton<RsaSecurityKey>(sp =>
+{
+    var options = sp.GetRequiredService<IOptions<JwtOptions>>().Value;
+    return JwtRsaKeyReader.CreatePublicKey(options);
+});
+
 builder.Services
     .AddOptions<MinioOptions>()
     .Bind(builder.Configuration.GetSection(MinioOptions.SectionName))
@@ -180,6 +201,7 @@ builder.Services.AddScoped<MinioService>();
 builder.Services.AddScoped<IMessagePublisher, RabbitmqPublish>();
 builder.Services.AddScoped<ChunkUploadService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
+builder.Services.AddScoped<IRefreshService, RefreshService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 

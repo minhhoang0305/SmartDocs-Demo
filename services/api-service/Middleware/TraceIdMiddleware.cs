@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using Serilog.Context;
+
 
 public class TraceIdMiddleware
 {
@@ -8,20 +10,18 @@ public class TraceIdMiddleware
     {
         _next = next;
     }
-
-    public async Task InvokeAsync(
-        HttpContext context,
-        ILogger<TraceIdMiddleware> logger)
+    public async Task InvokeAsync(HttpContext context)
     {
-        var traceId = Activity.Current?.TraceId.ToString() ?? context.TraceIdentifier;
+        var traceId = Activity.Current?.TraceId.ToString()?? context.TraceIdentifier;
+        var spanId = Activity.Current?.SpanId.ToString();
+
         context.Items["traceId"] = traceId;
         context.Response.Headers["X-Trace-Id"] = traceId;
 
-        using var scope = logger.BeginScope(new Dictionary<string, object>
+        using(LogContext.PushProperty("TraceId", traceId))
+        using(LogContext.PushProperty("SpanId", spanId))
         {
-            ["TraceId"] = traceId
-        });
-
-        await _next(context);
+            await _next(context);
+        }
     }
 }

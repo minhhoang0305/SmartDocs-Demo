@@ -8,13 +8,15 @@ namespace api_service.Controller;
 [Route("api/auth")]
 public class AuthController : ControllerBase
 {
-    private readonly IJwtService _jwtService;
     private readonly IAuthService _authService;
+    private readonly IRefreshService _refreshService;
 
-    public AuthController(IJwtService jwtService, IAuthService authService)
+    public AuthController(
+        IAuthService authService,
+        IRefreshService refreshService)
     {
-        _jwtService = jwtService;
         _authService = authService;
+        _refreshService = refreshService;
     }
 
     [HttpPost("register")]
@@ -37,12 +39,41 @@ public class AuthController : ControllerBase
             return Unauthorized(result.Error);
 
         var user = result.Value!;
-        var token = _jwtService.GenerateToken(user.Username, user.Email, user.Role);
+        var token = await _refreshService.GenerateTokenAsync(user);
 
         return Ok(new
         {
-            access_token = token,
+            access_token = token.AccessToken,
+            refresh_token = token.RefreshToken,
             messager = "Đăng nhập thành công"
         });
+    }
+
+    [HttpPost("refresh")]
+    public async Task<IActionResult> Refresh(RefreshTokenRequest request)
+    {
+        var result = await _refreshService.RefreshAsync(request.RefreshToken);
+
+        if (result.IsFailure)
+            return Unauthorized(result.Error);
+
+        var token = result.Value!;
+
+        return Ok(new
+        {
+            access_token = token.AccessToken,
+            refresh_token = token.RefreshToken
+        });
+    }
+
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout(RefreshTokenRequest request)
+    {
+        var result = await _refreshService.RevokeAsync(request.RefreshToken);
+
+        if (result.IsFailure)
+            return BadRequest(result.Error);
+
+        return Ok(result.Value);
     }
 }

@@ -5,6 +5,8 @@ using RabbitMQ.Client;
 using Serilog;
 using Serilog.Enrichers.Span;
 using Serilog.Sinks.Grafana.Loki;
+using StackExchange.Redis;
+using processing_service.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,11 +34,6 @@ builder.Host.UseSerilog((context, services, configuration) =>
             ]);
 });
 
-builder.Services.AddOpenApi();
-builder.Services.AddHostedService<DocumentUploadConsumer>();
-builder.Services.AddScoped<RedisService>();
-builder.Services.AddGrpc();
-
 builder.Services.AddSingleton<IConnection>(sp =>
 {
     var factory = new ConnectionFactory
@@ -48,6 +45,23 @@ builder.Services.AddSingleton<IConnection>(sp =>
     return factory.CreateConnection();
 });
 
+builder.Services.Configure<RedisOption>(builder.Configuration.GetSection(RedisOption.SectionName));
+builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+{
+    var configuration = builder.Configuration;
+    var connectionString = configuration["Redis:ConnectionString"];
+    if (string.IsNullOrWhiteSpace(connectionString))
+    {
+        throw new InvalidOperationException("Redis connection string is not configured");
+    }
+    return ConnectionMultiplexer.Connect(connectionString);
+});
+
+builder.Services.AddOpenApi();
+builder.Services.AddHostedService<DocumentUploadConsumer>();
+builder.Services.AddScoped<RedisService>();
+builder.Services.AddGrpc();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -58,30 +72,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
 app.MapGrpcService<DocumentGrpcService>();
 
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
-
-
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}

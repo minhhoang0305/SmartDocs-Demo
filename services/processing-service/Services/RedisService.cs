@@ -1,4 +1,6 @@
 using StackExchange.Redis;
+using processing_service.Options;
+using Microsoft.Extensions.Options;
 
 namespace processing_service.Services;
 
@@ -6,21 +8,16 @@ public class RedisService
 {
     private readonly IDatabase _database;
     private readonly ILogger<RedisService> _logger;
+    private readonly RedisOption _redisOption;
 
     public RedisService(
-        IConfiguration configuration,
-        ILogger<RedisService> logger)
+        IConnectionMultiplexer redis,
+        ILogger<RedisService> logger,
+        IOptions<RedisOption> redisOption)
     {
         _logger = logger;
-
-        var connectionString = configuration["Redis:ConnectionString"]!;
-
-        _logger.LogInformation("Connecting to Redis");
-
-        var redis = ConnectionMultiplexer.Connect(connectionString);
+        _redisOption = redisOption.Value;
         _database = redis.GetDatabase();
-
-        _logger.LogInformation("Connected to Redis");
     }
 
     public async Task SetCacheAsync(
@@ -67,7 +64,7 @@ public class RedisService
 
             return value;
         }
-        catch (Exception ex)
+        catch (Exception ex)    
         {
             _logger.LogError(
                 ex,

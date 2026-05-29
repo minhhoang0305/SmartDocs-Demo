@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using System.Diagnostics;
 
 public static class ExceptionMiddleware
 {
@@ -33,7 +34,7 @@ public static class ExceptionMiddleware
                     Instance = context.Request.Path
                 };
 
-                problem.Extensions["traceId"] = context.Items["traceId"]?.ToString() ?? context.TraceIdentifier;
+                problem.Extensions["traceId"] = context.Items["traceId"]?.ToString()??Activity.Current?.TraceId.ToString() ?? context.TraceIdentifier;
 
                 context.Response.StatusCode = statusCode;
                 context.Response.ContentType = "application/problem+json";
